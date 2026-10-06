@@ -1,0 +1,44 @@
+# Deploy — tự động deploy khi merge vào main.
+# Mục tiêu: Vercel (khuyên dùng cho Next.js). Redis/Mongo dùng dịch vụ ngoài
+# (Upstash Redis + MongoDB Atlas free tier) — không self-host ở MVP.
+
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # cho phép bấm tay
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production # bắt buộc approve nếu cấu hình protection
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+
+      # Deploy bằng Vercel CLI (cần VERCEL_TOKEN + VERCEL_PROJECT_ID trong secrets)
+      - run: pnpm dlx vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      # Smoke test sau deploy: ping /api/health
+      - run: |
+          sleep 20
+          curl -sf https://${{ secrets.PROD_DOMAIN }}/api/health

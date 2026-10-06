@@ -1,0 +1,35 @@
+# CI — chạy cho mọi PR và push vào main
+# Quy tắc: typecheck + lint + test + build phải xanh mới được merge.
+
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+        env:
+          # Build không cần DB/AI thật — dùng giá trị giả
+          MONGODB_URI: mongodb://localhost:27017/build-check
+          REDIS_URL: redis://localhost:6379
